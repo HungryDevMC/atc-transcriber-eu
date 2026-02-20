@@ -237,23 +237,26 @@ class SettingsScreen extends ConsumerWidget {
               padding: const EdgeInsets.all(16),
               mainAxisSpacing: 8,
               crossAxisSpacing: 8,
-              childAspectRatio: 1.5,
+              childAspectRatio: 1.2,
               children: AtcVocabulary.phoneticAlphabet.entries.map(
                 (e) => Card(
                   child: Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
                           e.key,
                           style: const TextStyle(
-                            fontSize: 20,
+                            fontSize: 18,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
+                        const SizedBox(height: 2),
                         Text(
                           e.value,
-                          style: const TextStyle(fontSize: 10),
+                          style: const TextStyle(fontSize: 9),
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ],
                     ),
