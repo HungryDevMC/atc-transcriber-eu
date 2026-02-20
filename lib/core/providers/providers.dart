@@ -2,10 +2,30 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/transcription.dart';
 import '../services/bluetooth_service.dart';
+import '../services/model_manager.dart';
 import '../services/storage_service.dart';
 import '../services/transcription_service.dart';
+import '../services/whisper_service.dart';
+
+// Transcription engine selection
+enum TranscriptionEngine {
+  whisper, // Whisper.cpp - accurate, offline
+  native, // Device native - fallback
+}
 
 // Service providers
+final whisperServiceProvider = Provider<WhisperService>((ref) {
+  final service = WhisperService();
+  ref.onDispose(() => service.dispose());
+  return service;
+});
+
+final modelManagerProvider = Provider<ModelManager>((ref) {
+  final manager = ModelManager();
+  ref.onDispose(() => manager.dispose());
+  return manager;
+});
+
 final transcriptionServiceProvider = Provider<TranscriptionService>((ref) {
   final service = TranscriptionService();
   ref.onDispose(() => service.dispose());
@@ -24,9 +44,24 @@ final storageServiceProvider = Provider<StorageService>((ref) {
   return service;
 });
 
-// State providers
-final transcriptionStateProvider =
-    StreamProvider<TranscriptionState>((ref) {
+// Active transcription engine
+final activeEngineProvider = StateProvider<TranscriptionEngine>((ref) {
+  return TranscriptionEngine.whisper;
+});
+
+// Whisper state
+final whisperStateProvider = StreamProvider<WhisperState>((ref) {
+  final service = ref.watch(whisperServiceProvider);
+  return service.stateStream;
+});
+
+final whisperModelProvider = Provider<WhisperModelType>((ref) {
+  final service = ref.watch(whisperServiceProvider);
+  return service.currentModel;
+});
+
+// Native transcription state (fallback)
+final transcriptionStateProvider = StreamProvider<TranscriptionState>((ref) {
   final service = ref.watch(transcriptionServiceProvider);
   return service.stateStream;
 });
@@ -37,14 +72,29 @@ final bluetoothStateProvider =
   return service.stateStream;
 });
 
+// Combined transcription stream (from both engines)
 final currentTranscriptionProvider = StreamProvider<Transcription>((ref) {
-  final service = ref.watch(transcriptionServiceProvider);
-  return service.transcriptionStream;
+  final engine = ref.watch(activeEngineProvider);
+
+  if (engine == TranscriptionEngine.whisper) {
+    final whisperService = ref.watch(whisperServiceProvider);
+    return whisperService.transcriptionStream;
+  } else {
+    final nativeService = ref.watch(transcriptionServiceProvider);
+    return nativeService.transcriptionStream;
+  }
 });
 
 final partialTranscriptionProvider = StreamProvider<String>((ref) {
   final service = ref.watch(transcriptionServiceProvider);
   return service.partialStream;
+});
+
+// Model download progress
+final modelDownloadProgressProvider =
+    StreamProvider<ModelDownloadProgress>((ref) {
+  final manager = ref.watch(modelManagerProvider);
+  return manager.progressStream;
 });
 
 // Transcription history
