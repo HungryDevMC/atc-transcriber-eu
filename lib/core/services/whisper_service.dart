@@ -11,22 +11,24 @@ import '../utils/atc_vocabulary.dart';
 
 enum WhisperModelType {
   /// Generic Whisper model (not recommended for ATC)
-  base('ggml-base.en.bin', 'Base English', 142),
+  base('ggml-base.en.bin', 'Base English', 142, WhisperModel.base),
 
   /// Small model - faster but less accurate
-  small('ggml-small.en.bin', 'Small English', 466),
+  small('ggml-small.en.bin', 'Small English', 466, WhisperModel.small),
 
   /// Medium model - good balance
-  medium('ggml-medium.en.bin', 'Medium English', 1500),
+  medium('ggml-medium.en.bin', 'Medium English', 1500, WhisperModel.medium),
 
   /// ATC-tuned model (custom, must be downloaded separately)
-  atcTuned('ggml-atc-medium.en.bin', 'ATC-Tuned Medium', 1500);
+  /// Falls back to medium model until custom model support is added
+  atcTuned('ggml-atc-medium.en.bin', 'ATC-Tuned Medium', 1500, WhisperModel.medium);
 
   final String filename;
   final String displayName;
   final int sizeMB;
+  final WhisperModel whisperModel;
 
-  const WhisperModelType(this.filename, this.displayName, this.sizeMB);
+  const WhisperModelType(this.filename, this.displayName, this.sizeMB, this.whisperModel);
 }
 
 enum WhisperState {
@@ -49,7 +51,6 @@ class WhisperService {
   final _transcriptionController = StreamController<Transcription>.broadcast();
 
   WhisperState _state = WhisperState.uninitialized;
-  String? _modelPath;
   String? _currentFrequency;
 
   Stream<WhisperState> get stateStream => _stateController.stream;
@@ -66,24 +67,17 @@ class WhisperService {
       return;
     }
 
-    _currentModel = model ?? WhisperModelType.atcTuned;
+    _currentModel = model ?? WhisperModelType.medium;
     _setState(WhisperState.initializing);
 
     try {
-      _modelPath = await _getModelPath(_currentModel);
+      // Use the standard WhisperModel enum - models will be downloaded automatically
+      _whisper = Whisper(
+        model: _currentModel.whisperModel,
+        downloadHost: 'https://huggingface.co/ggerganov/whisper.cpp/resolve/main',
+      );
 
-      if (_modelPath == null || !await File(_modelPath!).exists()) {
-        // Model not found - need to download or notify user
-        _setState(WhisperState.error);
-        throw Exception(
-          'Model ${_currentModel.filename} not found. '
-          'Please download the model and place it in the models directory.',
-        );
-      }
-
-      _whisper = Whisper(model: WhisperModel.fromPath(_modelPath!));
       _setState(WhisperState.ready);
-
       debugPrint('Whisper initialized with model: ${_currentModel.displayName}');
     } catch (e) {
       debugPrint('Whisper init error: $e');
@@ -92,29 +86,6 @@ class WhisperService {
     }
   }
 
-  /// Get the path to the model file
-  Future<String?> _getModelPath(WhisperModelType model) async {
-    final appDir = await getApplicationDocumentsDirectory();
-    final modelsDir = Directory('${appDir.path}/whisper_models');
-
-    if (!await modelsDir.exists()) {
-      await modelsDir.create(recursive: true);
-    }
-
-    final modelFile = File('${modelsDir.path}/${model.filename}');
-
-    if (await modelFile.exists()) {
-      return modelFile.path;
-    }
-
-    // Check assets folder as fallback
-    final assetsPath = '${appDir.path}/flutter_assets/assets/models/${model.filename}';
-    if (await File(assetsPath).exists()) {
-      return assetsPath;
-    }
-
-    return null;
-  }
 
   /// Transcribe an audio file
   Future<Transcription?> transcribeFile(String audioPath) async {
@@ -243,29 +214,15 @@ class WhisperService {
     _currentFrequency = frequency;
   }
 
-  /// Check if a model is available locally
-  Future<bool> isModelAvailable(WhisperModelType model) async {
-    final path = await _getModelPath(model);
-    return path != null && await File(path).exists();
-  }
-
   /// Get the models directory path
   Future<String> getModelsDirectory() async {
     final appDir = await getApplicationDocumentsDirectory();
     return '${appDir.path}/whisper_models';
   }
 
-  /// List available models
-  Future<List<WhisperModelType>> getAvailableModels() async {
-    final available = <WhisperModelType>[];
-
-    for (final model in WhisperModelType.values) {
-      if (await isModelAvailable(model)) {
-        available.add(model);
-      }
-    }
-
-    return available;
+  /// List all supported models (whisper_flutter_new downloads them automatically)
+  List<WhisperModelType> getSupportedModels() {
+    return WhisperModelType.values.toList();
   }
 
   void _setState(WhisperState newState) {
