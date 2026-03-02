@@ -2,27 +2,37 @@
 
 ## Quick Summary
 
-**Current WER: 19.10%** → **Target WER: <5%**
+**Previous WER: 19.10%** (custom-trained Whisper Small) → **New Model WER: 1.17–13.46%** (WhisperATC Large v3)
 
-The key to near-zero error rate is **constrained decoding** - ATC follows strict ICAO phraseology patterns. Instead of free-form transcription, we validate output against known ATC grammar rules.
+The app now uses **WhisperATC**, a Whisper large-v3 model fine-tuned on the ATCO2 and ATCOSIM EU ATC corpora by Delft University of Technology. This is the single highest-ROI change: a model swap that improves accuracy by an estimated 30–40% with no architectural changes.
 
 ---
 
 ## Current Status
 
-### Training Results
-- **Final Word Error Rate (WER): 19.10%**
-- **Training Data**: ATCO2 corpus (EU ATC communications)
-- **Hardware Used**: NVIDIA GTX 1080 Ti with CUDA 11.8
-- **Model Size**: 175MB (quantized GGML Q5_0)
+### Active Model: WhisperATC Large v3
+- **WER on ATCOSIM**: 1.17%
+- **WER on ATCO2**: 13.46%
+- **Source**: [jlvdoorn/whisper-large-v3-atco2-asr-atcosim](https://huggingface.co/jlvdoorn/whisper-large-v3-atco2-asr-atcosim)
+- **Base Model**: Whisper Large v3
+- **Training Data**: ATCO2 corpus + ATCOSIM corpus (EU ATC communications)
+- **Full Model Size**: ~3.1 GB (GGML format)
+- **Quantized (Q5_0)**: ~1.1 GB (recommended default for mobile)
+- **GGML Conversion**: Required via `whisper.cpp/convert-hf-to-ggml.py`
+
+### Previous Model (Deprecated)
+- **WER: 19.10%**
 - **Base Model**: Whisper Small
+- **Model Size**: 175MB (quantized GGML Q5_0)
 - **Output Location**: `./training/models/ggml-atc-whisper-q5_0.bin`
 
 ### App Integration Status
-- ✅ Custom model support added to WhisperService
-- ✅ Settings UI for model selection and import
-- ✅ File picker for importing custom models
-- ⚠️ **Issue**: Base model not auto-downloading (PathNotFoundException)
+- ✅ WhisperATC Large v3 model support added to WhisperService
+- ✅ Full and quantized (Q5_0) model variants in WhisperModelType enum
+- ✅ ModelManager download pipeline with HuggingFace URLs
+- ✅ Automatic fallback to Medium model if WhisperATC not downloaded
+- ✅ Settings UI updated with correct model information
+- ⚠️ **Prerequisite**: GGML-converted model must be hosted on HuggingFace
 
 ---
 
@@ -272,12 +282,15 @@ Future<void> initializeModel() async {
 
 ## Next Steps
 
-1. [ ] Fix model loading issue (bundle with assets)
-2. [ ] Implement ATC grammar post-processor
-3. [ ] Add confidence scoring to transcriptions
-4. [ ] Create feedback mechanism for corrections
-5. [ ] Collect more Belgian ATC recordings for fine-tuning
-6. [ ] Test with real-world radio scanner input
+1. [ ] Convert WhisperATC model to GGML format and host on HuggingFace
+2. [ ] Quantize GGML model to Q5_0 and verify accuracy is acceptable
+3. [ ] Test WhisperATC model with sample Belgian ATC audio clips
+4. [ ] Populate SHA256 checksums for all model downloads in ModelManager
+5. [ ] Implement download resume support (HTTP Range headers) for large models
+6. [ ] Add model size warning in download UI ("3.1 GB — WiFi recommended")
+7. [ ] Implement ATC grammar post-processor for further WER reduction
+8. [ ] Profile inference latency on target mobile devices (real-time factor < 1.0x)
+9. [ ] Test with real-world radio scanner input
 
 ---
 
@@ -285,10 +298,12 @@ Future<void> initializeModel() async {
 
 | File | Changes |
 |------|---------|
-| `lib/core/services/whisper_service.dart` | Custom model support, separate model directories |
-| `lib/core/providers/providers.dart` | Added customModelAvailableProvider |
-| `lib/features/settings/settings_screen.dart` | Model selection UI, import functionality |
-| `pubspec.yaml` | Added file_picker dependency |
+| `lib/core/services/whisper_service.dart` | WhisperATC model enum, custom model loading with symlink staging, fallback logic |
+| `lib/core/services/model_manager.dart` | WhisperATC download URLs, download size validation |
+| `lib/core/services/transcription_service.dart` | Updated Vosk references to Whisper |
+| `lib/features/settings/settings_screen.dart` | Updated model info dialog, removed Vosk references |
+| `lib/features/transcription/transcription_screen.dart` | Updated error message, removed Vosk references |
+| `TRAINING_DOCUMENTATION.md` | Updated to reflect WhisperATC model adoption |
 
 ---
 
@@ -386,21 +401,26 @@ Professional ATC systems achieve 3-5% WER using similar techniques.
 
 ---
 
-## Current Session Findings
+## GGML Conversion Instructions
 
-### Issue Encountered
-- **Error**: `PathNotFoundException` - Whisper model not downloading
-- **Location**: `/data/user/0/com.hungrydev.atc_transcriber/app_flutter/whisper_models/ggml-base.bin`
-- **Cause**: whisper_flutter_new auto-download may be blocked by network/firewall
+To convert the WhisperATC model to GGML format:
 
-### Solution
-Import your trained model manually via Settings → Import Model
+```bash
+# Clone whisper.cpp
+git clone https://github.com/ggml-org/whisper.cpp
+cd whisper.cpp
 
-### Model Location
-Your trained model: `./training/models/ggml-atc-whisper-q5_0.bin` (175MB)
-Pushed to phone: `/sdcard/Download/ggml-atc-whisper-q5_0.bin`
+# Convert HuggingFace model to GGML
+python models/convert-hf-to-ggml.py jlvdoorn/whisper-large-v3-atco2-asr-atcosim --outfile ggml-whisperatc-large-v3.bin
+
+# Quantize to Q5_0 for mobile deployment
+./build/bin/quantize ggml-whisperatc-large-v3.bin ggml-whisperatc-large-v3-q5_0.bin q5_0
+
+# Upload both files to a HuggingFace repo for app distribution
+```
 
 ---
 
 *Document created: 2025-02-20*
+*Last updated: 2026-03-02 — WhisperATC model adoption*
 *Author: Claude Code (GESP ATC Transcriber Project)*

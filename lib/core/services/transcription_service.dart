@@ -17,10 +17,9 @@ enum TranscriptionState {
   error,
 }
 
-/// Transcription service using on-device speech recognition.
-/// Currently uses speech_to_text which supports offline mode on iOS and
-/// Android (when models are downloaded). Can be extended to use Vosk
-/// for guaranteed offline support when needed.
+/// Fallback transcription service using on-device speech recognition.
+/// Uses speech_to_text which supports offline mode on iOS and Android.
+/// The primary transcription engine is WhisperService (WhisperATC model).
 class TranscriptionService {
   final SpeechToText _speech = SpeechToText();
 

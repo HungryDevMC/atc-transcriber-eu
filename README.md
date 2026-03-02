@@ -74,31 +74,29 @@ lib/
 
 ## Whisper Model Setup
 
-### Option 1: Use Pre-trained ATC Model (Recommended)
+### Option 1: WhisperATC Large v3 (Recommended)
 
-Download the ATC-fine-tuned model from HuggingFace:
+The app uses [WhisperATC](https://github.com/jlvdoorn/WhisperATC), a Whisper large-v3 model fine-tuned on the ATCO2 and ATCOSIM EU ATC corpora (Delft University). It achieves 1.17% WER on ATCOSIM and 13.46% WER on ATCO2.
+
+The model must be converted to GGML format for use with whisper.cpp:
 
 ```bash
-# Download and convert the model
-pip install transformers
-python scripts/convert_model.py jacktol/whisper-medium.en-fine-tuned-for-ATC
+# Convert HuggingFace model to GGML
+git clone https://github.com/ggml-org/whisper.cpp && cd whisper.cpp
+python models/convert-hf-to-ggml.py jlvdoorn/whisper-large-v3-atco2-asr-atcosim
+
+# Optional: quantize to Q5_0 for mobile (~1.1 GB vs ~3.1 GB)
+./build/bin/quantize ggml-whisperatc-large-v3.bin ggml-whisperatc-large-v3-q5_0.bin q5_0
 ```
 
-Or download pre-converted GGML:
-- [whisper-medium.en-fine-tuned-for-ATC (GGML)](https://huggingface.co/jacktol/whisper-medium.en-fine-tuned-for-ATC-faster-whisper)
-
-Place in: `<app_documents>/whisper_models/ggml-atc-medium.en.bin`
+Place in: `<app_documents>/whisper_models/ggml-whisperatc-large-v3.bin` (or `ggml-whisperatc-large-v3-q5_0.bin`)
 
 ### Option 2: Use Generic Whisper (Lower Accuracy)
 
 Download from [whisper.cpp models](https://huggingface.co/ggerganov/whisper.cpp):
 - `ggml-base.en.bin` - 142MB, fast
 - `ggml-small.en.bin` - 466MB, balanced
-- `ggml-medium.en.bin` - 1.5GB, accurate
-
-### Option 3: Build Custom EU Model
-
-See [docs/EU_ATC_MODEL_TRAINING.md](docs/EU_ATC_MODEL_TRAINING.md) for our strategy to build a custom model achieving <3% WER on EU/Belgian ATC.
+- `ggml-medium.en.bin` - 1.5GB, accurate (automatic fallback if WhisperATC not downloaded)
 
 ## Belgian Aviation Reference
 

@@ -160,7 +160,8 @@ class _TranscriptionScreenState extends ConsumerState<TranscriptionScreen> {
               ),
               const SizedBox(height: 24),
               const Text(
-                'Please ensure you have downloaded a Vosk model and placed it in the app\'s documents folder.',
+                'Please ensure the Whisper model has been downloaded. '
+                'Go to Settings to check model status and download.',
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 16),

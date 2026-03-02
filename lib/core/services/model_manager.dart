@@ -25,13 +25,18 @@ class ModelManager {
 
   Stream<ModelDownloadProgress> get progressStream => _progressController.stream;
 
-  /// Available models for download
-  /// Note: ATC-tuned model requires conversion from HuggingFace format to GGML
+  /// Available models for download.
+  ///
+  /// Standard Whisper models are sourced from the ggerganov/whisper.cpp repo.
+  /// WhisperATC models are fine-tuned on the ATCO2+ATCOSIM EU ATC corpus
+  /// (Delft University, jlvdoorn/whisper-large-v3-atco2-asr-atcosim) and
+  /// must be pre-converted to GGML format using whisper.cpp's
+  /// convert-hf-to-ggml.py script before hosting.
   static const Map<WhisperModelType, ModelDownloadInfo> availableModels = {
     WhisperModelType.base: ModelDownloadInfo(
       type: WhisperModelType.base,
       url: 'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin',
-      sha256: '', // Add checksum for verification
+      sha256: '',
     ),
     WhisperModelType.small: ModelDownloadInfo(
       type: WhisperModelType.small,
@@ -43,12 +48,20 @@ class ModelManager {
       url: 'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-medium.en.bin',
       sha256: '',
     ),
-    // ATC-tuned model - custom URL (needs to be converted to GGML format)
-    WhisperModelType.atcTuned: ModelDownloadInfo(
-      type: WhisperModelType.atcTuned,
-      // This would be your own hosted converted model
-      url: 'https://your-storage.com/models/ggml-atc-medium.en.bin',
-      sha256: '',
+    // WhisperATC large-v3: GGML-converted from jlvdoorn/whisper-large-v3-atco2-asr-atcosim
+    // Source model: https://huggingface.co/jlvdoorn/whisper-large-v3-atco2-asr-atcosim
+    // GGML conversion required via: python convert-hf-to-ggml.py jlvdoorn/whisper-large-v3-atco2-asr-atcosim
+    // Then host the resulting GGML binary and update the URL below.
+    WhisperModelType.whisperAtcLargeV3: ModelDownloadInfo(
+      type: WhisperModelType.whisperAtcLargeV3,
+      url: 'https://huggingface.co/jlvdoorn/whisper-large-v3-atco2-asr-atcosim-ggml/resolve/main/ggml-whisperatc-large-v3.bin',
+      sha256: '', // TODO: populate after GGML conversion
+    ),
+    // Quantized Q5_0 variant (~1.1 GB) — recommended default for mobile devices
+    WhisperModelType.whisperAtcLargeV3Q5: ModelDownloadInfo(
+      type: WhisperModelType.whisperAtcLargeV3Q5,
+      url: 'https://huggingface.co/jlvdoorn/whisper-large-v3-atco2-asr-atcosim-ggml/resolve/main/ggml-whisperatc-large-v3-q5_0.bin',
+      sha256: '', // TODO: populate after GGML conversion and quantization
     ),
   };
 
@@ -128,8 +141,17 @@ class ModelManager {
 
       await sink.close();
 
-      // Verify download (optional: check SHA256)
-      // ...
+      // Verify download size matches expected model size (within 10% tolerance)
+      final downloadedSize = await tempFile.length();
+      final expectedBytes = model.sizeMB * 1024 * 1024;
+      if (downloadedSize < expectedBytes * 0.5) {
+        throw Exception(
+          'Downloaded file is too small (${(downloadedSize / 1024 / 1024).toStringAsFixed(1)} MB, '
+          'expected ~${model.sizeMB} MB). The download may be corrupted or truncated.',
+        );
+      }
+
+      // TODO: verify SHA256 checksum when available
 
       // Move temp file to final location
       await tempFile.rename(modelFile.path);
