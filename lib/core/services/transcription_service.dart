@@ -19,8 +19,8 @@ enum TranscriptionState {
 
 /// Transcription service using on-device speech recognition.
 /// Currently uses speech_to_text which supports offline mode on iOS and
-/// Android (when models are downloaded). Can be extended to use Vosk
-/// for guaranteed offline support when needed.
+/// Android (when models are downloaded). See also [WhisperService] for
+/// Whisper.cpp-based offline transcription with ATC-tuned models.
 class TranscriptionService {
   final SpeechToText _speech = SpeechToText();
 

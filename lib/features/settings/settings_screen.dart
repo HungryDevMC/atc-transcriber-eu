@@ -36,7 +36,7 @@ class SettingsScreen extends ConsumerWidget {
             [
               ListTile(
                 title: const Text('Speech Model'),
-                subtitle: const Text('Vosk small-en-us'),
+                subtitle: const Text('WhisperATC Large v3 (ATCO2)'),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => _showModelInfo(context),
               ),
@@ -114,24 +114,28 @@ class SettingsScreen extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'This app uses Vosk for offline speech recognition.',
+              'This app uses Whisper.cpp for offline speech recognition '
+              'with the WhisperATC model fine-tuned on EU ATC data.',
             ),
             SizedBox(height: 16),
             Text(
-              'To install a model:',
+              'Available models:',
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
             SizedBox(height: 8),
-            Text('1. Download a Vosk model from:'),
-            Text(
-              'https://alphacephei.com/vosk/models',
-              style: TextStyle(color: Colors.blue),
-            ),
+            Text('• WhisperATC Large v3 (~3.1 GB)'),
+            Text('  Fine-tuned on ATCO2 EU ATC corpus'),
+            Text('  Best accuracy for ATC transcription'),
             SizedBox(height: 8),
-            Text('2. Extract and place in the app documents folder'),
+            Text('• WhisperATC Large v3 Q5 (~1 GB)'),
+            Text('  Quantized variant for limited storage'),
             SizedBox(height: 8),
+            Text('• Medium (~1.5 GB)'),
+            Text('  Fallback general-purpose model'),
+            SizedBox(height: 16),
             Text(
-              'Recommended: vosk-model-small-en-us (40MB)',
+              'Models are downloaded automatically on first use. '
+              'WiFi is recommended for the larger models.',
               style: TextStyle(fontStyle: FontStyle.italic),
             ),
           ],

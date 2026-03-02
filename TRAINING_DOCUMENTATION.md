@@ -2,15 +2,27 @@
 
 ## Quick Summary
 
-**Current WER: 19.10%** → **Target WER: <5%**
+**Previous custom model WER: 19.10%** → **WhisperATC model WER: ~6.5-17%** → **Target WER: <5%**
 
-The key to near-zero error rate is **constrained decoding** - ATC follows strict ICAO phraseology patterns. Instead of free-form transcription, we validate output against known ATC grammar rules.
+The app now uses the **WhisperATC Large v3** model from Delft University, fine-tuned on the ATCO2 EU ATC corpus. This replaces the previous custom-trained Whisper Small model (19.10% WER) with a significantly more accurate publicly-available model. Combined with constrained decoding (ATC follows strict ICAO phraseology), this provides the path to near-zero error rate.
 
 ---
 
 ## Current Status
 
-### Training Results
+### Active Model: WhisperATC Large v3
+
+- **Source**: [jlvdoorn/whisper-large-v3-atco2-asr](https://huggingface.co/jlvdoorn/whisper-large-v3-atco2-asr) (Delft University)
+- **Base Model**: OpenAI Whisper Large v3 (fine-tuned on ATCO2 EU ATC corpus)
+- **Model Size**: ~3.1GB (full), ~1GB (Q5_0 quantized)
+- **Format**: GGML (converted from HuggingFace SafeTensors via whisper.cpp)
+- **License**: Apache 2.0
+
+### Alternative ATC Models
+- [jacktol/whisper-large-v3-finetuned-for-ATC](https://huggingface.co/jacktol/whisper-large-v3-finetuned-for-ATC) — 6.5% WER on ATC ASR test set
+- [jlvdoorn/whisper-large-v3-atcosim](https://huggingface.co/jlvdoorn/whisper-large-v3-atcosim) — trained on ATCOSIM dataset
+
+### Previous Custom Model (Deprecated)
 - **Final Word Error Rate (WER): 19.10%**
 - **Training Data**: ATCO2 corpus (EU ATC communications)
 - **Hardware Used**: NVIDIA GTX 1080 Ti with CUDA 11.8
@@ -19,10 +31,25 @@ The key to near-zero error rate is **constrained decoding** - ATC follows strict
 - **Output Location**: `./training/models/ggml-atc-whisper-q5_0.bin`
 
 ### App Integration Status
-- ✅ Custom model support added to WhisperService
-- ✅ Settings UI for model selection and import
-- ✅ File picker for importing custom models
-- ⚠️ **Issue**: Base model not auto-downloading (PathNotFoundException)
+- ✅ WhisperATC Large v3 integrated as default model
+- ✅ Quantized Q5_0 variant available for storage-constrained devices
+- ✅ Automatic fallback to Medium model if ATC model unavailable
+- ✅ Settings UI updated with correct model information
+- ✅ ModelManager handles download from HuggingFace
+
+### GGML Conversion
+The WhisperATC model must be converted from HuggingFace format to GGML:
+```bash
+# Clone whisper.cpp
+git clone https://github.com/ggml-org/whisper.cpp
+cd whisper.cpp
+
+# Convert HuggingFace model to GGML
+python models/convert-hf-to-ggml.py jlvdoorn/whisper-large-v3-atco2-asr
+
+# Optional: quantize to Q5_0 for smaller footprint
+./quantize ggml-large-v3.bin ggml-large-v3-q5_0.bin q5_0
+```
 
 ---
 

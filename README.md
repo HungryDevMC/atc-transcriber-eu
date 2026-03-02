@@ -74,27 +74,30 @@ lib/
 
 ## Whisper Model Setup
 
-### Option 1: Use Pre-trained ATC Model (Recommended)
+### Option 1: WhisperATC Large v3 (Recommended)
 
-Download the ATC-fine-tuned model from HuggingFace:
+The app defaults to the **WhisperATC Large v3** model, fine-tuned on the ATCO2 EU ATC corpus by Delft University. This model must be converted to GGML format:
 
 ```bash
-# Download and convert the model
-pip install transformers
-python scripts/convert_model.py jacktol/whisper-medium.en-fine-tuned-for-ATC
+# Clone whisper.cpp and convert the model
+git clone https://github.com/ggml-org/whisper.cpp
+cd whisper.cpp
+python models/convert-hf-to-ggml.py jlvdoorn/whisper-large-v3-atco2-asr
+
+# Optional: quantize for smaller footprint (~1GB vs ~3.1GB)
+./quantize ggml-large-v3.bin ggml-large-v3-q5_0.bin q5_0
 ```
 
-Or download pre-converted GGML:
-- [whisper-medium.en-fine-tuned-for-ATC (GGML)](https://huggingface.co/jacktol/whisper-medium.en-fine-tuned-for-ATC-faster-whisper)
+Source models on HuggingFace:
+- [jlvdoorn/whisper-large-v3-atco2-asr](https://huggingface.co/jlvdoorn/whisper-large-v3-atco2-asr) — trained on ATCO2 EU ATC corpus
+- [jacktol/whisper-large-v3-finetuned-for-ATC](https://huggingface.co/jacktol/whisper-large-v3-finetuned-for-ATC) — 6.5% WER on ATC test set
 
-Place in: `<app_documents>/whisper_models/ggml-atc-medium.en.bin`
+### Option 2: Use Generic Whisper (Fallback)
 
-### Option 2: Use Generic Whisper (Lower Accuracy)
-
-Download from [whisper.cpp models](https://huggingface.co/ggerganov/whisper.cpp):
-- `ggml-base.en.bin` - 142MB, fast
-- `ggml-small.en.bin` - 466MB, balanced
-- `ggml-medium.en.bin` - 1.5GB, accurate
+If the ATC model is unavailable, the app falls back to the standard Medium model which auto-downloads from [whisper.cpp models](https://huggingface.co/ggerganov/whisper.cpp):
+- `ggml-base.bin` - 142MB, fast
+- `ggml-small.bin` - 466MB, balanced
+- `ggml-medium.bin` - 1.5GB, accurate
 
 ### Option 3: Build Custom EU Model
 

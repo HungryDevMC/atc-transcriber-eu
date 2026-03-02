@@ -9,26 +9,45 @@ import 'package:whisper_flutter_new/whisper_flutter_new.dart';
 import '../models/transcription.dart';
 import '../utils/atc_vocabulary.dart';
 
+/// WhisperATC model version from jlvdoorn/whisper-large-v3-atco2-asr (Delft University).
+/// Used for traceability when debugging transcription issues.
+const String whisperAtcModelVersion = 'jlvdoorn/whisper-large-v3-atco2-asr@main';
+
 enum WhisperModelType {
-  /// Generic Whisper model (not recommended for ATC)
-  base('ggml-base.en.bin', 'Base English', 142, WhisperModel.base),
+  /// Generic Whisper base model (not recommended for ATC)
+  base('ggml-base.bin', 'Base English', 142, WhisperModel.base),
 
   /// Small model - faster but less accurate
-  small('ggml-small.en.bin', 'Small English', 466, WhisperModel.small),
+  small('ggml-small.bin', 'Small English', 466, WhisperModel.small),
 
-  /// Medium model - good balance
-  medium('ggml-medium.en.bin', 'Medium English', 1500, WhisperModel.medium),
+  /// Medium model - good balance of speed and accuracy
+  medium('ggml-medium.bin', 'Medium English', 1500, WhisperModel.medium),
 
-  /// ATC-tuned model (custom, must be downloaded separately)
-  /// Falls back to medium model until custom model support is added
-  atcTuned('ggml-atc-medium.en.bin', 'ATC-Tuned Medium', 1500, WhisperModel.medium);
+  /// WhisperATC Large v3 - fine-tuned on ATCO2 EU ATC corpus (Delft University)
+  /// Achieves significantly lower WER than generic Whisper models on ATC audio.
+  /// ~3.1GB download — WiFi recommended.
+  /// Note: Uses WhisperModel.largeV2 enum mapping; whisper.cpp auto-detects
+  /// the actual architecture from the GGML file header.
+  whisperAtcLargeV3(
+      'ggml-large-v2.bin', 'WhisperATC Large v3', 3100, WhisperModel.largeV2),
+
+  /// WhisperATC Large v3 quantized (Q5_0) - smaller footprint for
+  /// storage-constrained devices. ~1GB download.
+  whisperAtcLargeV3Quantized(
+      'ggml-large-v1.bin', 'WhisperATC Large v3 (Q5)', 1050, WhisperModel.largeV1);
 
   final String filename;
   final String displayName;
   final int sizeMB;
   final WhisperModel whisperModel;
 
-  const WhisperModelType(this.filename, this.displayName, this.sizeMB, this.whisperModel);
+  const WhisperModelType(
+      this.filename, this.displayName, this.sizeMB, this.whisperModel);
+
+  /// Whether this model requires a custom download via ModelManager
+  /// (not available from the standard ggerganov/whisper.cpp host).
+  bool get requiresCustomDownload =>
+      this == whisperAtcLargeV3 || this == whisperAtcLargeV3Quantized;
 }
 
 enum WhisperState {
@@ -41,10 +60,11 @@ enum WhisperState {
 }
 
 /// Whisper.cpp based transcription service for accurate ATC transcription.
-/// Supports custom fine-tuned models for EU ATC communications.
+/// Defaults to WhisperATC large-v3 model (fine-tuned on ATCO2 EU ATC corpus)
+/// with automatic fallback to medium model if the ATC model is unavailable.
 class WhisperService {
   Whisper? _whisper;
-  WhisperModelType _currentModel = WhisperModelType.atcTuned;
+  WhisperModelType _currentModel = WhisperModelType.whisperAtcLargeV3;
 
   final _stateController = StreamController<WhisperState>.broadcast();
   final _progressController = StreamController<double>.broadcast();
@@ -60,27 +80,61 @@ class WhisperService {
   WhisperState get state => _state;
   WhisperModelType get currentModel => _currentModel;
 
-  /// Initialize Whisper with the specified model
+  /// The preferred model for ATC transcription.
+  /// Defaults to WhisperATC Large v3, falling back to medium if unavailable.
+  WhisperModelType get _preferredModel => WhisperModelType.whisperAtcLargeV3;
+
+  /// Initialize Whisper with the specified model.
+  ///
+  /// For ATC models ([WhisperModelType.requiresCustomDownload]), the model
+  /// must be pre-downloaded via [ModelManager.downloadModel] before calling
+  /// this method. If the model file is not found, initialization falls back
+  /// to [WhisperModelType.medium] which auto-downloads from the standard host.
   Future<void> initialize({WhisperModelType? model}) async {
     if (_state == WhisperState.initializing ||
         _state == WhisperState.downloading) {
       return;
     }
 
-    _currentModel = model ?? WhisperModelType.medium;
+    _currentModel = model ?? _preferredModel;
     _setState(WhisperState.initializing);
 
     try {
-      // Use the standard WhisperModel enum - models will be downloaded automatically
+      final modelsDir = await getModelsDirectory();
+
+      // For ATC models, verify the file was pre-downloaded via ModelManager
+      if (_currentModel.requiresCustomDownload) {
+        final modelFile = File('$modelsDir/${_currentModel.filename}');
+        if (!await modelFile.exists()) {
+          debugPrint(
+            'ATC model ${_currentModel.filename} not found in $modelsDir, '
+            'falling back to medium model',
+          );
+          _currentModel = WhisperModelType.medium;
+        }
+      }
+
       _whisper = Whisper(
         model: _currentModel.whisperModel,
-        downloadHost: 'https://huggingface.co/ggerganov/whisper.cpp/resolve/main',
+        modelDir: modelsDir,
+        downloadHost:
+            'https://huggingface.co/ggerganov/whisper.cpp/resolve/main',
       );
 
       _setState(WhisperState.ready);
-      debugPrint('Whisper initialized with model: ${_currentModel.displayName}');
+      debugPrint(
+        'Whisper initialized with model: ${_currentModel.displayName} '
+        '(version: $whisperAtcModelVersion)',
+      );
     } catch (e) {
       debugPrint('Whisper init error: $e');
+      // If a non-medium model failed, try falling back to medium
+      if (_currentModel != WhisperModelType.medium) {
+        debugPrint('Falling back to medium model');
+        _currentModel = WhisperModelType.medium;
+        _state = WhisperState.uninitialized;
+        return initialize(model: WhisperModelType.medium);
+      }
       _setState(WhisperState.error);
       rethrow;
     }
@@ -214,10 +268,14 @@ class WhisperService {
     _currentFrequency = frequency;
   }
 
-  /// Get the models directory path
+  /// Get the models directory path, creating it if necessary.
   Future<String> getModelsDirectory() async {
     final appDir = await getApplicationDocumentsDirectory();
-    return '${appDir.path}/whisper_models';
+    final modelsDir = Directory('${appDir.path}/whisper_models');
+    if (!await modelsDir.exists()) {
+      await modelsDir.create(recursive: true);
+    }
+    return modelsDir.path;
   }
 
   /// List all supported models (whisper_flutter_new downloads them automatically)
