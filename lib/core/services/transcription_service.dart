@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 
 import 'package:flutter/foundation.dart';
 import 'package:speech_to_text/speech_recognition_result.dart';
@@ -47,7 +48,14 @@ class TranscriptionService {
     try {
       _isInitialized = await _speech.initialize(
         onError: (error) {
-          debugPrint('Speech error: ${error.errorMsg}');
+          developer.log(
+            'Speech recognition error during listening',
+            name: 'TranscriptionService',
+            error: error.errorMsg,
+            level: 900,
+          );
+          debugPrint('Speech error: ${error.errorMsg} '
+              '(permanent: ${error.permanent}, state: $_state)');
           if (_state == TranscriptionState.listening) {
             _setState(TranscriptionState.ready);
           }
@@ -72,8 +80,15 @@ class TranscriptionService {
       debugPrint('Available locales: ${locales.length}');
 
       _setState(TranscriptionState.ready);
-    } catch (e) {
-      debugPrint('Transcription init error: $e');
+    } catch (e, stackTrace) {
+      developer.log(
+        'Failed to initialize transcription service',
+        name: 'TranscriptionService',
+        error: e,
+        stackTrace: stackTrace,
+        level: 1000,
+      );
+      debugPrint('Transcription init error: $e\n$stackTrace');
       _setState(TranscriptionState.error);
       rethrow;
     }
@@ -103,8 +118,16 @@ class TranscriptionService {
           enableHapticFeedback: false,
         ),
       );
-    } catch (e) {
-      debugPrint('Start listening error: $e');
+    } catch (e, stackTrace) {
+      developer.log(
+        'Failed to start listening (state was: $_state, '
+        'frequency: $_currentFrequency)',
+        name: 'TranscriptionService',
+        error: e,
+        stackTrace: stackTrace,
+        level: 1000,
+      );
+      debugPrint('Start listening error: $e\n$stackTrace');
       _setState(TranscriptionState.error);
       rethrow;
     }
@@ -117,8 +140,15 @@ class TranscriptionService {
     try {
       await _speech.stop();
       _setState(TranscriptionState.ready);
-    } catch (e) {
-      debugPrint('Stop listening error: $e');
+    } catch (e, stackTrace) {
+      developer.log(
+        'Failed to stop listening',
+        name: 'TranscriptionService',
+        error: e,
+        stackTrace: stackTrace,
+        level: 900,
+      );
+      debugPrint('Stop listening error: $e\n$stackTrace');
     }
   }
 

@@ -1,3 +1,5 @@
+import 'dart:developer' as developer;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -46,7 +48,14 @@ class _TranscriptionScreenState extends ConsumerState<TranscriptionScreen> {
       if (mounted) {
         setState(() => _isInitialized = true);
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      developer.log(
+        'Failed to initialize transcription services',
+        name: 'TranscriptionScreen',
+        error: e,
+        stackTrace: stackTrace,
+        level: 1000,
+      );
       if (mounted) {
         setState(() => _initError = e.toString());
       }
@@ -65,7 +74,14 @@ class _TranscriptionScreenState extends ConsumerState<TranscriptionScreen> {
         await transcriptionService.startListening();
         ref.read(isRecordingProvider.notifier).state = true;
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      developer.log(
+        'Failed to ${isRecording ? 'stop' : 'start'} recording',
+        name: 'TranscriptionScreen',
+        error: e,
+        stackTrace: stackTrace,
+        level: 1000,
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: $e')),
