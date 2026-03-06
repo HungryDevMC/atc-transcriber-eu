@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -79,8 +80,17 @@ class WhisperService {
 
       _setState(WhisperState.ready);
       debugPrint('Whisper initialized with model: ${_currentModel.displayName}');
-    } catch (e) {
-      debugPrint('Whisper init error: $e');
+    } catch (e, stackTrace) {
+      developer.log(
+        'Failed to initialize Whisper '
+        '(model: ${_currentModel.displayName}, '
+        'size: ${_currentModel.sizeMB}MB)',
+        name: 'WhisperService',
+        error: e,
+        stackTrace: stackTrace,
+        level: 1000,
+      );
+      debugPrint('Whisper init error: $e\n$stackTrace');
       _setState(WhisperState.error);
       rethrow;
     }
@@ -126,8 +136,21 @@ class WhisperService {
 
       _transcriptionController.add(transcription);
       return transcription;
-    } catch (e) {
-      debugPrint('Transcription error: $e');
+    } catch (e, stackTrace) {
+      final file = File(audioPath);
+      final fileExists = await file.exists();
+      final fileSize = fileExists ? await file.length() : -1;
+      developer.log(
+        'Failed to transcribe audio file '
+        '(path: $audioPath, exists: $fileExists, '
+        'size: ${fileSize}B, model: ${_currentModel.displayName}, '
+        'frequency: $_currentFrequency)',
+        name: 'WhisperService',
+        error: e,
+        stackTrace: stackTrace,
+        level: 1000,
+      );
+      debugPrint('Transcription error for $audioPath: $e\n$stackTrace');
       _setState(WhisperState.ready);
       rethrow;
     }
@@ -145,6 +168,16 @@ class WhisperService {
     try {
       await tempFile.writeAsBytes(audioBytes);
       return await transcribeFile(tempFile.path);
+    } catch (e, stackTrace) {
+      developer.log(
+        'Failed to transcribe audio bytes '
+        '(format: $format, size: ${audioBytes.length}B)',
+        name: 'WhisperService',
+        error: e,
+        stackTrace: stackTrace,
+        level: 1000,
+      );
+      rethrow;
     } finally {
       // Clean up temp file
       if (await tempFile.exists()) {
